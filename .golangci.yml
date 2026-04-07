@@ -1,0 +1,15 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - gosec
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
