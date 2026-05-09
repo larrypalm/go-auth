@@ -67,3 +67,9 @@ func UserFromContext(ctx context.Context) (User, bool) {
 	user, ok := ctx.Value(userContextKey).(User)
 	return user, ok
 }
+
+// WithUser puts an authenticated user into the context.
+// Useful for testing middleware that depends on goauth.UserFromContext.
+func WithUser(ctx context.Context, user User) context.Context {
+	return context.WithValue(ctx, userContextKey, user)
+}
