@@ -1,7 +1,7 @@
 openapi: "3.1.0"
 info:
   title: go-auth API
-  version: 0.1.0
+  version: 0.2.0
   description: Reusable auth endpoints — mountable handlers for Go APIs. JWT + bcrypt + refresh tokens.
 servers:
   - url: http://localhost:8080
@@ -110,6 +110,122 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /auth/password-reset/request:
+    post:
+      summary: Request a password reset
+      description: >
+        Sends a password reset email if the address is registered.
+        Always returns 200 regardless of whether the email exists (anti-enumeration).
+        Rate limited: one reset email per address every 5 minutes.
+      operationId: requestPasswordReset
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "200":
+          description: >
+            Reset email sent (or silently ignored if email not found).
+            Response is always the same to prevent email enumeration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetRequestResponse"
+        "400":
+          description: Missing email field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/password-reset/confirm:
+    post:
+      summary: Confirm password reset
+      description: >
+        Sets a new password using the reset token from the email link.
+        Token is single-use with 1-hour expiry. All existing refresh tokens
+        are revoked on success (forces re-login on all devices).
+      operationId: confirmPasswordReset
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetConfirm"
+      responses:
+        "200":
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetConfirmResponse"
+        "400":
+          description: Missing fields or weak password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: Token expired, already used, or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/oauth/{provider}:
+    post:
+      summary: Authenticate via OAuth provider
+      description: >
+        Validates an OAuth ID token from the specified provider.
+        If the provider user ID is already linked, returns tokens for the linked user.
+        If unlinked but email matches an existing verified user, links and returns tokens.
+        Otherwise creates a new user and link, then returns tokens.
+      operationId: oauthLogin
+      tags: [OAuth]
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "apple"
+          description: OAuth provider name (e.g. "apple", "google")
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OAuthRequest"
+      responses:
+        "200":
+          description: Authentication successful (existing user)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "201":
+          description: Authentication successful (new user created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Unknown provider or missing id_token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid or expired ID token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     RegisterRequest:
@@ -148,6 +264,20 @@ components:
         refresh_token:
           type: string
 
+    OAuthRequest:
+      type: object
+      required: [id_token]
+      properties:
+        id_token:
+          type: string
+          description: ID token from the OAuth provider (e.g. Apple/Google JWT)
+        name:
+          type: string
+          description: >
+            Optional display name fallback. Used when creating a new user
+            if the provider doesn't include the name (e.g. Apple only sends
+            name on first authorization).
+
     AuthResponse:
       type: object
       required: [access_token, refresh_token, user]
@@ -176,6 +306,42 @@ components:
         created_at:
           type: string
           format: date-time
+
+    PasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    PasswordResetRequestResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: "If an account with that email exists, a reset link has been sent."
+
+    PasswordResetConfirm:
+      type: object
+      required: [token, password]
+      properties:
+        token:
+          type: string
+          description: Raw reset token from the email link
+        password:
+          type: string
+          format: password
+          minLength: 8
+
+    PasswordResetConfirmResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: "Password has been reset successfully."
 
     ErrorResponse:
       type: object
