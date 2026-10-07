@@ -2,7 +2,11 @@ openapi: "3.1.0"
 info:
   title: go-auth API
   version: 0.2.0
-  description: Reusable auth endpoints — mountable handlers for Go APIs. JWT + bcrypt + refresh tokens.
+  description: >
+    Reusable auth endpoints — mountable handlers for Go APIs. JWT + bcrypt + refresh tokens.
+    In cookie mode (Config.CookieMode), the routes that issue tokens set the httpOnly cookies
+    goauth_access (path /) and goauth_refresh (path /auth) and return only the user. Every route
+    then answers an unsafe cross-origin request with 403 and the error code cross_origin.
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -11,6 +15,7 @@ paths:
   /auth/register:
     post:
       summary: Register a new user
+      description: Not mounted when Config.DisableRegister is set.
       operationId: registerUser
       tags: [Auth]
       requestBody:
@@ -67,10 +72,11 @@ paths:
   /auth/refresh:
     post:
       summary: Exchange refresh token for new token pair
+      description: In cookie mode, reads the token from the refresh cookie and ignores the body.
       operationId: refreshToken
       tags: [Auth]
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -92,10 +98,13 @@ paths:
   /auth/logout:
     post:
       summary: Revoke refresh token (log out)
+      description: >
+        In cookie mode, reads the token from the refresh cookie, ignores the body and clears
+        both cookies. It returns 204 even when the request has no refresh cookie.
       operationId: logoutUser
       tags: [Auth]
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -280,14 +289,14 @@ components:
 
     AuthResponse:
       type: object
-      required: [access_token, refresh_token, user]
+      required: [user]
       properties:
         access_token:
           type: string
-          description: Short-lived JWT (15 min)
+          description: Short-lived JWT (15 min). Left out in cookie mode.
         refresh_token:
           type: string
-          description: Long-lived opaque token (30 days)
+          description: Long-lived opaque token (30 days). Left out in cookie mode.
         user:
           $ref: "#/components/schemas/User"
 
@@ -365,3 +374,8 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: goauth_access
+      description: Cookie mode only. Middleware reads it when there is no Authorization header.
