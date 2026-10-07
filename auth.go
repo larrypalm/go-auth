@@ -17,7 +17,10 @@ type Config struct {
 	DisableRegister bool
 
 	// Optional. Cookie mode is for a browser app served from the same origin as the API.
-	CookieMode bool // set the tokens as httpOnly cookies on login, refresh, register and OAuth
+	CookieMode        bool   // set the tokens as httpOnly cookies on login, refresh, register and OAuth
+	AccessCookieName  string // default "goauth_access"
+	RefreshCookieName string // default "goauth_refresh"
+	RefreshCookiePath string // default "/auth", which covers /auth/refresh and /auth/logout
 
 	// Optional — required only if password reset endpoints are used.
 	ResetTokenStore     ResetTokenStore
@@ -50,6 +53,15 @@ func New(cfg Config) *Auth {
 	}
 	if cfg.VerificationTTL == 0 {
 		cfg.VerificationTTL = 24 * time.Hour
+	}
+	if cfg.AccessCookieName == "" {
+		cfg.AccessCookieName = "goauth_access"
+	}
+	if cfg.RefreshCookieName == "" {
+		cfg.RefreshCookieName = "goauth_refresh"
+	}
+	if cfg.RefreshCookiePath == "" {
+		cfg.RefreshCookiePath = "/auth"
 	}
 	return &Auth{config: cfg}
 }

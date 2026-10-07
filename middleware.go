@@ -35,7 +35,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			}
 			tokenString = parts[1]
 		case a.config.CookieMode:
-			cookie, err := r.Cookie(accessCookieName)
+			cookie, err := r.Cookie(a.config.AccessCookieName)
 			if err != nil || cookie.Value == "" {
 				writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header or access cookie is required")
 				return

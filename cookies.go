@@ -2,23 +2,17 @@ package goauth
 
 import "net/http"
 
-const (
-	accessCookieName  = "goauth_access"
-	refreshCookieName = "goauth_refresh"
-	refreshCookiePath = "/auth"
-)
-
 // setAuthCookies sets both tokens as httpOnly cookies. The refresh cookie's path
 // covers only the routes that read it, /auth/refresh and /auth/logout.
 func (a *Auth) setAuthCookies(w http.ResponseWriter, accessToken, refreshToken string) {
-	http.SetCookie(w, a.authCookie(accessCookieName, accessToken, "/", int(a.config.AccessTTL.Seconds())))
-	http.SetCookie(w, a.authCookie(refreshCookieName, refreshToken, refreshCookiePath, int(a.config.RefreshTTL.Seconds())))
+	http.SetCookie(w, a.authCookie(a.config.AccessCookieName, accessToken, "/", int(a.config.AccessTTL.Seconds())))
+	http.SetCookie(w, a.authCookie(a.config.RefreshCookieName, refreshToken, a.config.RefreshCookiePath, int(a.config.RefreshTTL.Seconds())))
 }
 
 // clearAuthCookies tells the browser to delete both auth cookies.
 func (a *Auth) clearAuthCookies(w http.ResponseWriter) {
-	http.SetCookie(w, a.authCookie(accessCookieName, "", "/", -1))
-	http.SetCookie(w, a.authCookie(refreshCookieName, "", refreshCookiePath, -1))
+	http.SetCookie(w, a.authCookie(a.config.AccessCookieName, "", "/", -1))
+	http.SetCookie(w, a.authCookie(a.config.RefreshCookieName, "", a.config.RefreshCookiePath, -1))
 }
 
 // authCookie builds a cookie with the attributes every auth cookie shares.
