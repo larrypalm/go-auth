@@ -17,7 +17,7 @@ type Config struct {
 	DisableRegister bool
 
 	// Optional. Cookie mode is for a browser app served from the same origin as the API.
-	CookieMode        bool   // set the tokens as httpOnly cookies on login, refresh, register and OAuth
+	CookieMode        bool   // set the tokens as httpOnly cookies instead of returning them in JSON bodies
 	AccessCookieName  string // default "goauth_access"
 	RefreshCookieName string // default "goauth_refresh"
 	RefreshCookiePath string // default "/auth", which covers /auth/refresh and /auth/logout
