@@ -345,3 +345,29 @@ func TestCookieMode_ConfiguredNamesAndPath(t *testing.T) {
 	assertClearedCookie(t, rec, "app_access", "/")
 	assertClearedCookie(t, rec, "app_refresh", "/api/auth")
 }
+
+func TestCookieMode_InsecureCookiesLeaveSecureOff(t *testing.T) {
+	a := New(Config{
+		UserStore:       &memoryUserStore{},
+		TokenStore:      &memoryTokenStore{},
+		JWTSecret:       "test-secret-key",
+		AccessTTL:       15 * time.Minute,
+		RefreshTTL:      30 * 24 * time.Hour,
+		CookieMode:      true,
+		InsecureCookies: true,
+	})
+
+	login := loginUser(t, a)
+
+	req := httptest.NewRequest("POST", "/auth/logout", nil)
+	logout := httptest.NewRecorder()
+	a.Routes().ServeHTTP(logout, req)
+
+	for _, rec := range []*httptest.ResponseRecorder{login, logout} {
+		for _, name := range []string{"goauth_access", "goauth_refresh"} {
+			if findCookie(t, rec, name).Secure {
+				t.Errorf("%s: expected no Secure attribute", name)
+			}
+		}
+	}
+}
