@@ -114,3 +114,57 @@ func TestCookieMode_LoginLeavesTokensOutOfBody(t *testing.T) {
 		t.Error("expected the user in the body")
 	}
 }
+
+func TestCookieMode_RegisterAndOAuthSetAuthCookies(t *testing.T) {
+	provider := &mockOAuthProvider{
+		info: OAuthUserInfo{
+			ProviderUserID: "apple-123",
+			Email:          "larry@example.com",
+			EmailVerified:  true,
+			Name:           "Larry",
+		},
+	}
+
+	tests := []struct {
+		name string
+		path string
+		body string
+	}{
+		{"register", "/auth/register", `{"email":"larry@example.com","password":"strongpassword123","name":"Larry"}`},
+		{"oauth", "/auth/oauth/apple", `{"id_token":"valid-apple-token"}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := New(Config{
+				UserStore:      &memoryUserStore{},
+				TokenStore:     &memoryTokenStore{},
+				JWTSecret:      "test-secret-key",
+				AccessTTL:      15 * time.Minute,
+				RefreshTTL:     30 * 24 * time.Hour,
+				OAuthStore:     &memoryOAuthStore{},
+				OAuthProviders: map[string]OAuthProvider{"apple": provider},
+				CookieMode:     true,
+			})
+
+			req := httptest.NewRequest("POST", tt.path, bytes.NewBufferString(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			a.Routes().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusCreated {
+				t.Fatalf("expected 201, got %d: %s", rec.Code, rec.Body.String())
+			}
+			assertAuthCookie(t, findCookie(t, rec, "goauth_access"), "/", 15*time.Minute)
+			assertAuthCookie(t, findCookie(t, rec, "goauth_refresh"), "/auth", 30*24*time.Hour)
+
+			var resp AuthResponse
+			if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+			if resp.AccessToken != "" || resp.RefreshToken != "" {
+				t.Error("expected no tokens in the body")
+			}
+		})
+	}
+}
