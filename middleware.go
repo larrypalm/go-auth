@@ -35,8 +35,8 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			}
 			tokenString = parts[1]
 		case a.config.CookieMode:
-			cookie, err := r.Cookie(a.config.AccessCookieName)
-			if err != nil || cookie.Value == "" {
+			tokenString = cookieValue(r, a.config.AccessCookieName)
+			if tokenString == "" {
 				writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header or access cookie is required")
 				return
 			}
@@ -45,7 +45,6 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			if !a.sameOrigin(w, r) {
 				return
 			}
-			tokenString = cookie.Value
 		default:
 			writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header is required")
 			return

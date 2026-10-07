@@ -15,6 +15,15 @@ func (a *Auth) clearAuthCookies(w http.ResponseWriter) {
 	http.SetCookie(w, a.authCookie(a.config.RefreshCookieName, "", a.config.RefreshCookiePath, -1))
 }
 
+// cookieValue returns the value of the named cookie, or "" when the request has none.
+func cookieValue(r *http.Request, name string) string {
+	cookie, err := r.Cookie(name)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
 // authCookie builds a cookie with the attributes every auth cookie shares.
 func (a *Auth) authCookie(name, value, path string, maxAge int) *http.Cookie {
 	return &http.Cookie{
