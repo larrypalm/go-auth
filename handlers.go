@@ -159,35 +159,7 @@ func (a *Auth) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate tokens
-	accessToken, err := a.generateAccessToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate access token")
-		return
-	}
-
-	rawRefresh, refreshHash, err := generateRefreshToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate refresh token")
-		return
-	}
-
-	err = a.config.TokenStore.SaveRefreshToken(r.Context(), RefreshToken{
-		TokenHash: refreshHash,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(a.config.RefreshTTL),
-		CreatedAt: time.Now(),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to save refresh token")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: rawRefresh,
-		User:         user,
-	})
+	a.respondWithTokens(r.Context(), w, http.StatusOK, user)
 }
 
 func (a *Auth) handleRefresh(w http.ResponseWriter, r *http.Request) {
@@ -239,34 +211,7 @@ func (a *Auth) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Issue new token pair
-	accessToken, err := a.generateAccessToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate access token")
-		return
-	}
-
-	rawRefresh, refreshHash, err := generateRefreshToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate refresh token")
-		return
-	}
-
-	err = a.config.TokenStore.SaveRefreshToken(r.Context(), RefreshToken{
-		TokenHash: refreshHash,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(a.config.RefreshTTL),
-		CreatedAt: time.Now(),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to save refresh token")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: rawRefresh,
-		User:         user,
-	})
+	a.respondWithTokens(r.Context(), w, http.StatusOK, user)
 }
 
 func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {
