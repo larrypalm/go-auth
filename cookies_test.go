@@ -188,3 +188,15 @@ func TestCookieMode_RefreshReadsTokenFromCookie(t *testing.T) {
 		t.Error("expected the refresh token to rotate")
 	}
 }
+
+func TestCookieMode_RefreshWithoutCookie(t *testing.T) {
+	a, _, _ := newCookieAuth()
+
+	req := httptest.NewRequest("POST", "/auth/refresh", nil)
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
