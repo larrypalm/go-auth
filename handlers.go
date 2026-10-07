@@ -228,13 +228,14 @@ func (a *Auth) handleRefresh(w http.ResponseWriter, r *http.Request) {
 func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {
 	var refreshToken string
 	if a.config.CookieMode {
+		// Clear the cookies even when there is no token to revoke, so the browser always ends logged out.
+		a.clearAuthCookies(w)
 		cookie, err := r.Cookie(refreshCookieName)
 		if err != nil || cookie.Value == "" {
-			writeError(w, http.StatusUnauthorized, "missing_token", "Refresh token cookie is required")
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		refreshToken = cookie.Value
-		a.clearAuthCookies(w)
 	} else {
 		var req struct {
 			RefreshToken string `json:"refresh_token"`
