@@ -304,3 +304,44 @@ func TestCookieMode_LogoutWithoutRefreshCookieClearsCookies(t *testing.T) {
 	assertClearedCookie(t, rec, "goauth_access", "/")
 	assertClearedCookie(t, rec, "goauth_refresh", "/auth")
 }
+
+func TestCookieMode_ConfiguredNamesAndPath(t *testing.T) {
+	a := New(Config{
+		UserStore:         &memoryUserStore{},
+		TokenStore:        &memoryTokenStore{},
+		JWTSecret:         "test-secret-key",
+		AccessTTL:         15 * time.Minute,
+		RefreshTTL:        30 * 24 * time.Hour,
+		CookieMode:        true,
+		AccessCookieName:  "app_access",
+		RefreshCookieName: "app_refresh",
+		RefreshCookiePath: "/api/auth",
+	})
+
+	login := loginUser(t, a)
+	access := findCookie(t, login, "app_access")
+	assertAuthCookie(t, access, "/", 15*time.Minute)
+	assertAuthCookie(t, findCookie(t, login, "app_refresh"), "/api/auth", 30*24*time.Hour)
+
+	req := httptest.NewRequest("POST", "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "app_refresh", Value: findCookie(t, login, "app_refresh").Value})
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("refresh: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest("GET", "/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "app_access", Value: access.Value})
+	rec = httptest.NewRecorder()
+	a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("middleware: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest("POST", "/auth/logout", nil)
+	rec = httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+	assertClearedCookie(t, rec, "app_access", "/")
+	assertClearedCookie(t, rec, "app_refresh", "/api/auth")
+}
