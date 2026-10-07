@@ -221,3 +221,34 @@ func TestCookieMode_MiddlewareReadsAccessCookie(t *testing.T) {
 		t.Errorf("expected email larry@example.com, got %s", user.Email)
 	}
 }
+
+func TestCookieMode_MiddlewarePrefersAuthorizationHeader(t *testing.T) {
+	a, _, _ := newCookieAuth()
+	access := findCookie(t, loginUser(t, a), "goauth_access")
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer totally-invalid-jwt")
+	req.AddCookie(&http.Cookie{Name: "goauth_access", Value: access.Value})
+	rec := httptest.NewRecorder()
+	a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 from the invalid header, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestBearerMode_MiddlewareIgnoresAccessCookie(t *testing.T) {
+	cookieAuth, _, _ := newCookieAuth()
+	access := findCookie(t, loginUser(t, cookieAuth), "goauth_access")
+
+	// Same secret, so the token is valid for the bearer-mode instance too.
+	a, _, _ := newTestAuth()
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "goauth_access", Value: access.Value})
+	rec := httptest.NewRecorder()
+	a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
