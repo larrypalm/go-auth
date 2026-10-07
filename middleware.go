@@ -16,26 +16,35 @@ const userContextKey contextKey = "goauth_user"
 
 // Middleware returns an HTTP middleware that validates the JWT access token
 // from the Authorization header and puts the user claims into the request context.
+// In cookie mode it reads the access cookie when there is no Authorization header.
 //
 // Usage:
 //
 //	protected := auth.Middleware(http.HandlerFunc(myHandler))
 func (a *Auth) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract token from "Authorization: Bearer <token>"
+		var tokenString string
 		header := r.Header.Get("Authorization")
-		if header == "" {
+		switch {
+		case header != "":
+			// Extract token from "Authorization: Bearer <token>"
+			parts := strings.SplitN(header, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				writeError(w, http.StatusUnauthorized, "invalid_header", "Authorization header must be: Bearer <token>")
+				return
+			}
+			tokenString = parts[1]
+		case a.config.CookieMode:
+			cookie, err := r.Cookie(accessCookieName)
+			if err != nil || cookie.Value == "" {
+				writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header or access cookie is required")
+				return
+			}
+			tokenString = cookie.Value
+		default:
 			writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header is required")
 			return
 		}
-
-		parts := strings.SplitN(header, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			writeError(w, http.StatusUnauthorized, "invalid_header", "Authorization header must be: Bearer <token>")
-			return
-		}
-
-		tokenString := parts[1]
 
 		// Parse and validate the JWT
 		claims := &Claims{}
