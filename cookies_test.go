@@ -371,3 +371,37 @@ func TestCookieMode_InsecureCookiesLeaveSecureOff(t *testing.T) {
 		}
 	}
 }
+
+func TestCookieMode_RoutesRejectCrossOriginRequests(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		value  string
+	}{
+		{"cross-site", "Sec-Fetch-Site", "cross-site"},
+		{"sibling subdomain", "Sec-Fetch-Site", "same-site"},
+		{"foreign Origin without Sec-Fetch-Site", "Origin", "https://evil.example"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a, _, _ := newCookieAuth()
+			registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+
+			// A text/plain body is what an HTML form can send cross-site without a preflight.
+			body := `{"email":"larry@example.com","password":"strongpassword123"}`
+			req := httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(body))
+			req.Header.Set("Content-Type", "text/plain")
+			req.Header.Set(tt.header, tt.value)
+			rec := httptest.NewRecorder()
+			a.Routes().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+			}
+			if len(rec.Result().Cookies()) != 0 {
+				t.Error("expected no cookies on a rejected request")
+			}
+		})
+	}
+}
