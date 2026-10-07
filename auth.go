@@ -13,6 +13,16 @@ type Config struct {
 	AccessTTL  time.Duration // how long access tokens live (e.g. 15 * time.Minute)
 	RefreshTTL time.Duration // how long refresh tokens live (e.g. 30 * 24 * time.Hour)
 
+	// DisableRegister leaves POST /auth/register unmounted, for apps that create users another way.
+	DisableRegister bool
+
+	// Optional. Cookie mode is for a browser app served from the same origin as the API.
+	CookieMode        bool   // set the tokens as httpOnly cookies instead of returning them in JSON bodies
+	AccessCookieName  string // default "goauth_access"
+	RefreshCookieName string // default "goauth_refresh"
+	RefreshCookiePath string // default "/auth", which covers /auth/refresh and /auth/logout
+	InsecureCookies   bool   // leave Secure off, for local development over plain http only
+
 	// Optional — required only if password reset endpoints are used.
 	ResetTokenStore     ResetTokenStore
 	PasswordResetSender PasswordResetSender
@@ -32,6 +42,7 @@ type Config struct {
 // Auth is the main handler that owns all auth routes and logic.
 type Auth struct {
 	config Config
+	csrf   *http.CrossOriginProtection
 }
 
 // New creates a new Auth instance with the given config.
@@ -45,7 +56,16 @@ func New(cfg Config) *Auth {
 	if cfg.VerificationTTL == 0 {
 		cfg.VerificationTTL = 24 * time.Hour
 	}
-	return &Auth{config: cfg}
+	if cfg.AccessCookieName == "" {
+		cfg.AccessCookieName = "goauth_access"
+	}
+	if cfg.RefreshCookieName == "" {
+		cfg.RefreshCookieName = "goauth_refresh"
+	}
+	if cfg.RefreshCookiePath == "" {
+		cfg.RefreshCookiePath = "/auth"
+	}
+	return &Auth{config: cfg, csrf: http.NewCrossOriginProtection()}
 }
 
 // Routes returns an http.Handler with all auth endpoints mounted.
@@ -54,7 +74,9 @@ func New(cfg Config) *Auth {
 //	router.Handle("/auth/", auth.Routes())
 func (a *Auth) Routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /auth/register", a.handleRegister)
+	if !a.config.DisableRegister {
+		mux.HandleFunc("POST /auth/register", a.handleRegister)
+	}
 	mux.HandleFunc("POST /auth/login", a.handleLogin)
 	mux.HandleFunc("POST /auth/refresh", a.handleRefresh)
 	mux.HandleFunc("POST /auth/logout", a.handleLogout)
@@ -67,6 +89,9 @@ func (a *Auth) Routes() http.Handler {
 	}
 	if a.config.OAuthStore != nil && len(a.config.OAuthProviders) > 0 {
 		mux.HandleFunc("POST /auth/oauth/{provider}", a.handleOAuth)
+	}
+	if a.config.CookieMode {
+		return a.rejectCrossOrigin(mux)
 	}
 	return mux
 }

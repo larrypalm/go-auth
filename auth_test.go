@@ -443,6 +443,28 @@ func TestRegister_WeakPassword(t *testing.T) {
 	}
 }
 
+func TestRegister_DisabledRouteIsNotMounted(t *testing.T) {
+	a := New(Config{
+		UserStore:       &memoryUserStore{},
+		TokenStore:      &memoryTokenStore{},
+		JWTSecret:       "test-secret-key",
+		AccessTTL:       15 * time.Minute,
+		RefreshTTL:      30 * 24 * time.Hour,
+		DisableRegister: true,
+	})
+
+	body := `{"email":"larry@example.com","password":"strongpassword123","name":"Larry"}`
+	req := httptest.NewRequest("POST", "/auth/register", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // --- Login tests ---
 
 // registerUser is a test helper that registers a user and returns the response.

@@ -159,54 +159,36 @@ func (a *Auth) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate tokens
-	accessToken, err := a.generateAccessToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate access token")
-		return
-	}
-
-	rawRefresh, refreshHash, err := generateRefreshToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate refresh token")
-		return
-	}
-
-	err = a.config.TokenStore.SaveRefreshToken(r.Context(), RefreshToken{
-		TokenHash: refreshHash,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(a.config.RefreshTTL),
-		CreatedAt: time.Now(),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to save refresh token")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: rawRefresh,
-		User:         user,
-	})
+	a.respondWithTokens(r.Context(), w, http.StatusOK, user)
 }
 
 func (a *Auth) handleRefresh(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
+	var refreshToken string
+	if a.config.CookieMode {
+		refreshToken = cookieValue(r, a.config.RefreshCookieName)
+		if refreshToken == "" {
+			writeError(w, http.StatusUnauthorized, "missing_token", "Refresh token cookie is required")
+			return
+		}
+	} else {
+		var req struct {
+			RefreshToken string `json:"refresh_token"`
+		}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", "Invalid request body")
-		return
-	}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "Invalid request body")
+			return
+		}
 
-	if req.RefreshToken == "" {
-		writeError(w, http.StatusBadRequest, "missing_fields", "Refresh token is required")
-		return
+		if req.RefreshToken == "" {
+			writeError(w, http.StatusBadRequest, "missing_fields", "Refresh token is required")
+			return
+		}
+		refreshToken = req.RefreshToken
 	}
 
 	// Look up the stored token by hash
-	tokenHash := hashToken(req.RefreshToken)
+	tokenHash := hashToken(refreshToken)
 	stored, err := a.config.TokenStore.GetRefreshToken(r.Context(), tokenHash)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_token", "Invalid refresh token")
@@ -239,52 +221,37 @@ func (a *Auth) handleRefresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Issue new token pair
-	accessToken, err := a.generateAccessToken(user)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate access token")
-		return
-	}
-
-	rawRefresh, refreshHash, err := generateRefreshToken()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to generate refresh token")
-		return
-	}
-
-	err = a.config.TokenStore.SaveRefreshToken(r.Context(), RefreshToken{
-		TokenHash: refreshHash,
-		UserID:    user.ID,
-		ExpiresAt: time.Now().Add(a.config.RefreshTTL),
-		CreatedAt: time.Now(),
-	})
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to save refresh token")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: rawRefresh,
-		User:         user,
-	})
+	a.respondWithTokens(r.Context(), w, http.StatusOK, user)
 }
 
 func (a *Auth) handleLogout(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
+	var refreshToken string
+	if a.config.CookieMode {
+		// Clear the cookies even when there is no token to revoke, so the browser always ends logged out.
+		a.clearAuthCookies(w)
+		refreshToken = cookieValue(r, a.config.RefreshCookieName)
+		if refreshToken == "" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	} else {
+		var req struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_json", "Invalid request body")
+			return
+		}
+
+		if req.RefreshToken == "" {
+			writeError(w, http.StatusUnauthorized, "missing_fields", "Refresh token is required")
+			return
+		}
+		refreshToken = req.RefreshToken
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", "Invalid request body")
-		return
-	}
-
-	if req.RefreshToken == "" {
-		writeError(w, http.StatusUnauthorized, "missing_fields", "Refresh token is required")
-		return
-	}
-
-	tokenHash := hashToken(req.RefreshToken)
+	tokenHash := hashToken(refreshToken)
 	if err := a.config.TokenStore.RevokeRefreshToken(r.Context(), tokenHash); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_token", "Invalid refresh token")
 		return
@@ -433,6 +400,12 @@ func (a *Auth) respondWithTokens(ctx context.Context, w http.ResponseWriter, sta
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal", "Failed to save refresh token")
+		return
+	}
+
+	if a.config.CookieMode {
+		a.setAuthCookies(w, accessToken, rawRefresh)
+		writeJSON(w, status, AuthResponse{User: user})
 		return
 	}
 
