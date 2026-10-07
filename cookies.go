@@ -15,6 +15,12 @@ func (a *Auth) setAuthCookies(w http.ResponseWriter, accessToken, refreshToken s
 	http.SetCookie(w, a.authCookie(refreshCookieName, refreshToken, refreshCookiePath, int(a.config.RefreshTTL.Seconds())))
 }
 
+// clearAuthCookies tells the browser to delete both auth cookies.
+func (a *Auth) clearAuthCookies(w http.ResponseWriter) {
+	http.SetCookie(w, a.authCookie(accessCookieName, "", "/", -1))
+	http.SetCookie(w, a.authCookie(refreshCookieName, "", refreshCookiePath, -1))
+}
+
 // authCookie builds a cookie with the attributes every auth cookie shares.
 func (a *Auth) authCookie(name, value, path string, maxAge int) *http.Cookie {
 	return &http.Cookie{
