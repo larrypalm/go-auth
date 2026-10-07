@@ -42,8 +42,7 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 			}
 			// Browsers attach cookies to cross-origin requests, but never the Authorization header,
 			// so only cookie-authenticated requests need the check.
-			if err := a.csrf.Check(r); err != nil {
-				writeError(w, http.StatusForbidden, "cross_origin", "Cross-origin request rejected")
+			if !a.sameOrigin(w, r) {
 				return
 			}
 			tokenString = cookie.Value

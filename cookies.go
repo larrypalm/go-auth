@@ -32,10 +32,18 @@ func (a *Auth) authCookie(name, value, path string, maxAge int) *http.Cookie {
 // Cookie mode needs it because SameSite=Lax still sends cookies on requests from sibling subdomains.
 func (a *Auth) rejectCrossOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := a.csrf.Check(r); err != nil {
-			writeError(w, http.StatusForbidden, "cross_origin", "Cross-origin request rejected")
+		if !a.sameOrigin(w, r) {
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// sameOrigin writes a 403 and returns false when r is an unsafe request from another origin.
+func (a *Auth) sameOrigin(w http.ResponseWriter, r *http.Request) bool {
+	if err := a.csrf.Check(r); err != nil {
+		writeError(w, http.StatusForbidden, "cross_origin", "Cross-origin request rejected")
+		return false
+	}
+	return true
 }
