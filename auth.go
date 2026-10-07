@@ -13,6 +13,9 @@ type Config struct {
 	AccessTTL  time.Duration // how long access tokens live (e.g. 15 * time.Minute)
 	RefreshTTL time.Duration // how long refresh tokens live (e.g. 30 * 24 * time.Hour)
 
+	// DisableRegister leaves POST /auth/register unmounted, for apps that create users another way.
+	DisableRegister bool
+
 	// Optional — required only if password reset endpoints are used.
 	ResetTokenStore     ResetTokenStore
 	PasswordResetSender PasswordResetSender
@@ -54,7 +57,9 @@ func New(cfg Config) *Auth {
 //	router.Handle("/auth/", auth.Routes())
 func (a *Auth) Routes() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /auth/register", a.handleRegister)
+	if !a.config.DisableRegister {
+		mux.HandleFunc("POST /auth/register", a.handleRegister)
+	}
 	mux.HandleFunc("POST /auth/login", a.handleLogin)
 	mux.HandleFunc("POST /auth/refresh", a.handleRefresh)
 	mux.HandleFunc("POST /auth/logout", a.handleLogout)
