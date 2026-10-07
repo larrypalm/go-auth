@@ -112,9 +112,9 @@ In cookie mode:
 | Field | Default | Purpose |
 |-------|---------|---------|
 | `AccessCookieName` | `goauth_access` | Name of the access cookie |
-| `RefreshCookieName` | `goauth_refresh` | Name of the refresh cookie |
+| `RefreshCookieName` | `goauth_refresh` | Name of the refresh cookie. Browsers reject a `__Host-` cookie unless its path is `/`, so a `__Host-` name also needs `RefreshCookiePath: "/"`. A `__Secure-` name works with any path |
 | `RefreshCookiePath` | `/auth` | Change it if you mount the routes under a prefix, for example `/api/auth` with `http.StripPrefix` |
-| `InsecureCookies` | `false` | Leaves Secure off for local development over plain http. Safari rejects Secure cookies from `http://localhost`, while Chrome and Firefox accept them. Never set it in production. |
+| `InsecureCookies` | `false` | Leaves Secure off for local development over plain http. Safari rejects Secure cookies from `http://localhost`, while Chrome and Firefox accept them. Browsers also reject `__Host-` and `__Secure-` names without Secure. Never set it in production. |
 
 ## Endpoints
 
