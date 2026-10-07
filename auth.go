@@ -42,6 +42,7 @@ type Config struct {
 // Auth is the main handler that owns all auth routes and logic.
 type Auth struct {
 	config Config
+	csrf   *http.CrossOriginProtection
 }
 
 // New creates a new Auth instance with the given config.
@@ -64,7 +65,7 @@ func New(cfg Config) *Auth {
 	if cfg.RefreshCookiePath == "" {
 		cfg.RefreshCookiePath = "/auth"
 	}
-	return &Auth{config: cfg}
+	return &Auth{config: cfg, csrf: http.NewCrossOriginProtection()}
 }
 
 // Routes returns an http.Handler with all auth endpoints mounted.
@@ -88,6 +89,9 @@ func (a *Auth) Routes() http.Handler {
 	}
 	if a.config.OAuthStore != nil && len(a.config.OAuthProviders) > 0 {
 		mux.HandleFunc("POST /auth/oauth/{provider}", a.handleOAuth)
+	}
+	if a.config.CookieMode {
+		return a.rejectCrossOrigin(mux)
 	}
 	return mux
 }

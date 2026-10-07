@@ -27,3 +27,15 @@ func (a *Auth) authCookie(name, value, path string, maxAge int) *http.Cookie {
 		SameSite: http.SameSiteLaxMode,
 	}
 }
+
+// rejectCrossOrigin rejects unsafe requests from other origins before they reach next.
+// Cookie mode needs it because SameSite=Lax still sends cookies on requests from sibling subdomains.
+func (a *Auth) rejectCrossOrigin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := a.csrf.Check(r); err != nil {
+			writeError(w, http.StatusForbidden, "cross_origin", "Cross-origin request rejected")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
