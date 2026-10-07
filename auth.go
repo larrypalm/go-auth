@@ -16,6 +16,9 @@ type Config struct {
 	// DisableRegister leaves POST /auth/register unmounted, for apps that create users another way.
 	DisableRegister bool
 
+	// Optional. Cookie mode is for a browser app served from the same origin as the API.
+	CookieMode bool // set the tokens as httpOnly cookies on login, refresh, register and OAuth
+
 	// Optional — required only if password reset endpoints are used.
 	ResetTokenStore     ResetTokenStore
 	PasswordResetSender PasswordResetSender
