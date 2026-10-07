@@ -23,7 +23,7 @@ func (a *Auth) authCookie(name, value, path string, maxAge int) *http.Cookie {
 		Path:     path,
 		MaxAge:   maxAge,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   !a.config.InsecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	}
 }

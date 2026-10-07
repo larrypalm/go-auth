@@ -21,6 +21,7 @@ type Config struct {
 	AccessCookieName  string // default "goauth_access"
 	RefreshCookieName string // default "goauth_refresh"
 	RefreshCookiePath string // default "/auth", which covers /auth/refresh and /auth/logout
+	InsecureCookies   bool   // leave Secure off, for local development over plain http only
 
 	// Optional — required only if password reset endpoints are used.
 	ResetTokenStore     ResetTokenStore
