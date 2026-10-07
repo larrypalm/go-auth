@@ -288,3 +288,19 @@ func TestCookieMode_LogoutRevokesAndClearsCookies(t *testing.T) {
 		t.Error("expected the refresh token to be revoked")
 	}
 }
+
+func TestCookieMode_LogoutWithoutRefreshCookieClearsCookies(t *testing.T) {
+	a, _, _ := newCookieAuth()
+	access := findCookie(t, loginUser(t, a), "goauth_access")
+
+	req := httptest.NewRequest("POST", "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "goauth_access", Value: access.Value})
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertClearedCookie(t, rec, "goauth_access", "/")
+	assertClearedCookie(t, rec, "goauth_refresh", "/auth")
+}
