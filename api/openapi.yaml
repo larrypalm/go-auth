@@ -7,6 +7,8 @@ info:
     In cookie mode (Config.CookieMode), the routes that issue tokens set the httpOnly cookies
     goauth_access (path /) and goauth_refresh (path /auth) and return only the user. Every route
     then answers an unsafe cross-origin request with 403 and the error code cross_origin.
+    The schemas describe bearer mode, the default. Each operation's description says what
+    changes in cookie mode.
 servers:
   - url: http://localhost:8080
     description: Local development
@@ -76,7 +78,7 @@ paths:
       operationId: refreshToken
       tags: [Auth]
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -104,7 +106,7 @@ paths:
       operationId: logoutUser
       tags: [Auth]
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -289,7 +291,7 @@ components:
 
     AuthResponse:
       type: object
-      required: [user]
+      required: [access_token, refresh_token, user]
       properties:
         access_token:
           type: string
@@ -378,4 +380,6 @@ components:
       type: apiKey
       in: cookie
       name: goauth_access
-      description: Cookie mode only. Middleware reads it when there is no Authorization header.
+      description: >
+        Cookie mode only. goauth_access is the default name, and Config.AccessCookieName
+        changes it. Middleware reads the cookie when there is no Authorization header.
