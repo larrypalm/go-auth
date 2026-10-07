@@ -421,3 +421,18 @@ func TestBearerMode_RoutesAllowCrossOriginRequests(t *testing.T) {
 		t.Errorf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestCookieMode_MiddlewareRejectsCrossOriginCookieRequests(t *testing.T) {
+	a, _, _ := newCookieAuth()
+	access := findCookie(t, loginUser(t, a), "goauth_access")
+
+	req := httptest.NewRequest("POST", "/protected", nil)
+	req.Header.Set("Sec-Fetch-Site", "same-site")
+	req.AddCookie(&http.Cookie{Name: "goauth_access", Value: access.Value})
+	rec := httptest.NewRecorder()
+	a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
