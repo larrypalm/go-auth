@@ -405,3 +405,19 @@ func TestCookieMode_RoutesRejectCrossOriginRequests(t *testing.T) {
 		})
 	}
 }
+
+func TestBearerMode_RoutesAllowCrossOriginRequests(t *testing.T) {
+	a, _, _ := newTestAuth()
+	registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+
+	body := `{"email":"larry@example.com","password":"strongpassword123"}`
+	req := httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
