@@ -168,3 +168,23 @@ func TestCookieMode_RegisterAndOAuthSetAuthCookies(t *testing.T) {
 		})
 	}
 }
+
+func TestCookieMode_RefreshReadsTokenFromCookie(t *testing.T) {
+	a, _, _ := newCookieAuth()
+	oldRefresh := findCookie(t, loginUser(t, a), "goauth_refresh")
+
+	req := httptest.NewRequest("POST", "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "goauth_refresh", Value: oldRefresh.Value})
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertAuthCookie(t, findCookie(t, rec, "goauth_access"), "/", 15*time.Minute)
+	newRefresh := findCookie(t, rec, "goauth_refresh")
+	assertAuthCookie(t, newRefresh, "/auth", 30*24*time.Hour)
+	if newRefresh.Value == oldRefresh.Value {
+		t.Error("expected the refresh token to rotate")
+	}
+}
