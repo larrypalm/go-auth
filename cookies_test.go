@@ -263,6 +263,9 @@ func assertClearedCookie(t *testing.T, rec *httptest.ResponseRecorder, name, pat
 	if c.Path != path {
 		t.Errorf("%s: expected Path %q, got %q", name, path, c.Path)
 	}
+	if !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteLaxMode {
+		t.Errorf("%s: expected HttpOnly, Secure and SameSite=Lax on the deleting cookie", name)
+	}
 }
 
 func TestCookieMode_LogoutRevokesAndClearsCookies(t *testing.T) {
@@ -401,6 +404,32 @@ func TestCookieMode_RoutesRejectCrossOriginRequests(t *testing.T) {
 			}
 			if len(rec.Result().Cookies()) != 0 {
 				t.Error("expected no cookies on a rejected request")
+			}
+		})
+	}
+}
+
+func TestCookieMode_RefreshAndLogoutRejectCrossOriginRequests(t *testing.T) {
+	for _, path := range []string{"/auth/refresh", "/auth/logout"} {
+		t.Run(path, func(t *testing.T) {
+			a, _, tokenStore := newCookieAuth()
+			refresh := findCookie(t, loginUser(t, a), "goauth_refresh")
+
+			req := httptest.NewRequest("POST", path, nil)
+			req.Header.Set("Sec-Fetch-Site", "same-site")
+			req.AddCookie(&http.Cookie{Name: "goauth_refresh", Value: refresh.Value})
+			rec := httptest.NewRecorder()
+			a.Routes().ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusForbidden {
+				t.Fatalf("expected 403, got %d: %s", rec.Code, rec.Body.String())
+			}
+			stored, err := tokenStore.GetRefreshToken(context.Background(), hashToken(refresh.Value))
+			if err != nil {
+				t.Fatalf("expected the refresh token in the store: %v", err)
+			}
+			if stored.RevokedAt != nil {
+				t.Error("expected the refresh token to stay valid")
 			}
 		})
 	}
