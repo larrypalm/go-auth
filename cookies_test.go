@@ -436,3 +436,32 @@ func TestCookieMode_MiddlewareRejectsCrossOriginCookieRequests(t *testing.T) {
 		t.Errorf("expected 403, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestCookieMode_MiddlewareAllowsSafeOrBearerCrossOriginRequests(t *testing.T) {
+	a, _, _ := newCookieAuth()
+	access := findCookie(t, loginUser(t, a), "goauth_access")
+
+	t.Run("GET with cookie", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/protected", nil)
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+		req.AddCookie(&http.Cookie{Name: "goauth_access", Value: access.Value})
+		rec := httptest.NewRecorder()
+		a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("POST with Authorization header", func(t *testing.T) {
+		req := httptest.NewRequest("POST", "/protected", nil)
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+		req.Header.Set("Authorization", "Bearer "+access.Value)
+		rec := httptest.NewRecorder()
+		a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+		}
+	})
+}
