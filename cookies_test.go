@@ -200,3 +200,24 @@ func TestCookieMode_RefreshWithoutCookie(t *testing.T) {
 		t.Errorf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestCookieMode_MiddlewareReadsAccessCookie(t *testing.T) {
+	a, _, _ := newCookieAuth()
+	access := findCookie(t, loginUser(t, a), "goauth_access")
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "goauth_access", Value: access.Value})
+	rec := httptest.NewRecorder()
+	a.Middleware(http.HandlerFunc(protectedHandler)).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var user User
+	if err := json.NewDecoder(rec.Body).Decode(&user); err != nil {
+		t.Fatalf("failed to decode user: %v", err)
+	}
+	if user.Email != "larry@example.com" {
+		t.Errorf("expected email larry@example.com, got %s", user.Email)
+	}
+}
