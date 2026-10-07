@@ -252,3 +252,39 @@ func TestBearerMode_MiddlewareIgnoresAccessCookie(t *testing.T) {
 		t.Errorf("expected 401, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+// assertClearedCookie checks that the response deletes the named cookie at the given path.
+func assertClearedCookie(t *testing.T, rec *httptest.ResponseRecorder, name, path string) {
+	t.Helper()
+	c := findCookie(t, rec, name)
+	if c.MaxAge >= 0 {
+		t.Errorf("%s: expected Max-Age=0 to delete it, got Max-Age %d", name, c.MaxAge)
+	}
+	if c.Path != path {
+		t.Errorf("%s: expected Path %q, got %q", name, path, c.Path)
+	}
+}
+
+func TestCookieMode_LogoutRevokesAndClearsCookies(t *testing.T) {
+	a, _, tokenStore := newCookieAuth()
+	refresh := findCookie(t, loginUser(t, a), "goauth_refresh")
+
+	req := httptest.NewRequest("POST", "/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "goauth_refresh", Value: refresh.Value})
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	assertClearedCookie(t, rec, "goauth_access", "/")
+	assertClearedCookie(t, rec, "goauth_refresh", "/auth")
+
+	stored, err := tokenStore.GetRefreshToken(context.Background(), hashToken(refresh.Value))
+	if err != nil {
+		t.Fatalf("expected the refresh token in the store: %v", err)
+	}
+	if stored.RevokedAt == nil {
+		t.Error("expected the refresh token to be revoked")
+	}
+}
