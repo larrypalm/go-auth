@@ -169,6 +169,70 @@ func TestCookieMode_RegisterAndOAuthSetAuthCookies(t *testing.T) {
 	}
 }
 
+func TestCookieMode_OAuthExistingUserSetsAuthCookies(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, a *Auth)
+	}{
+		// The first OAuth call creates the user and the link, so the second finds the link.
+		{"existing link", func(t *testing.T, a *Auth) { oauthLogin(t, a, http.StatusCreated) }},
+		// No link yet, but the verified email matches a registered user.
+		{"email match", func(t *testing.T, a *Auth) {
+			registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			provider := &mockOAuthProvider{
+				info: OAuthUserInfo{
+					ProviderUserID: "apple-123",
+					Email:          "larry@example.com",
+					EmailVerified:  true,
+					Name:           "Larry",
+				},
+			}
+			a := New(Config{
+				UserStore:      &memoryUserStore{},
+				TokenStore:     &memoryTokenStore{},
+				JWTSecret:      "test-secret-key",
+				AccessTTL:      15 * time.Minute,
+				RefreshTTL:     30 * 24 * time.Hour,
+				OAuthStore:     &memoryOAuthStore{},
+				OAuthProviders: map[string]OAuthProvider{"apple": provider},
+				CookieMode:     true,
+			})
+			tt.setup(t, a)
+
+			rec := oauthLogin(t, a, http.StatusOK)
+
+			assertAuthCookie(t, findCookie(t, rec, "goauth_access"), "/", 15*time.Minute)
+			assertAuthCookie(t, findCookie(t, rec, "goauth_refresh"), "/auth", 30*24*time.Hour)
+			var resp AuthResponse
+			if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+			if resp.AccessToken != "" || resp.RefreshToken != "" {
+				t.Error("expected no tokens in the body")
+			}
+		})
+	}
+}
+
+// oauthLogin posts an Apple ID token and checks the status code.
+func oauthLogin(t *testing.T, a *Auth, wantStatus int) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("POST", "/auth/oauth/apple", bytes.NewBufferString(`{"id_token":"valid-apple-token"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != wantStatus {
+		t.Fatalf("oauthLogin helper: expected %d, got %d: %s", wantStatus, rec.Code, rec.Body.String())
+	}
+	return rec
+}
+
 func TestCookieMode_RefreshReadsTokenFromCookie(t *testing.T) {
 	a, _, _ := newCookieAuth()
 	oldRefresh := findCookie(t, loginUser(t, a), "goauth_refresh")
