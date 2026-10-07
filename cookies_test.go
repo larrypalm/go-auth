@@ -3,6 +3,7 @@ package goauth
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -91,5 +92,25 @@ func TestCookieMode_LoginSetsAuthCookies(t *testing.T) {
 
 	if _, err := tokenStore.GetRefreshToken(context.Background(), hashToken(refresh.Value)); err != nil {
 		t.Errorf("expected the refresh cookie to hold a stored refresh token: %v", err)
+	}
+}
+
+func TestCookieMode_LoginLeavesTokensOutOfBody(t *testing.T) {
+	a, _, _ := newCookieAuth()
+
+	rec := loginUser(t, a)
+
+	var body map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if _, ok := body["access_token"]; ok {
+		t.Error("expected no access_token in the body")
+	}
+	if _, ok := body["refresh_token"]; ok {
+		t.Error("expected no refresh_token in the body")
+	}
+	if _, ok := body["user"]; !ok {
+		t.Error("expected the user in the body")
 	}
 }
