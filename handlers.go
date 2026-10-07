@@ -383,6 +383,8 @@ func (a *Auth) respondWithTokens(ctx context.Context, w http.ResponseWriter, sta
 
 	if a.config.CookieMode {
 		a.setAuthCookies(w, accessToken, rawRefresh)
+		writeJSON(w, status, AuthResponse{User: user})
+		return
 	}
 
 	writeJSON(w, status, AuthResponse{
