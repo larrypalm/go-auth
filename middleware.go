@@ -40,6 +40,12 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 				writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header or access cookie is required")
 				return
 			}
+			// Browsers attach cookies to cross-origin requests, but never the Authorization header,
+			// so only cookie-authenticated requests need the check.
+			if err := a.csrf.Check(r); err != nil {
+				writeError(w, http.StatusForbidden, "cross_origin", "Cross-origin request rejected")
+				return
+			}
 			tokenString = cookie.Value
 		default:
 			writeError(w, http.StatusUnauthorized, "missing_token", "Authorization header is required")
