@@ -208,9 +208,17 @@ func (a *Auth) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Revoke the old refresh token (rotation — each token is single-use)
-	if err := a.config.TokenStore.RevokeRefreshToken(r.Context(), tokenHash); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "Failed to revoke old token")
+	// Revoke the old refresh token (rotation — each token is single-use). Only the request
+	// whose revoke succeeds gets a new pair, so two refreshes at once give one session.
+	if err := a.config.TokenStore.ConsumeRefreshToken(r.Context(), tokenHash); err != nil {
+		switch {
+		case errors.Is(err, ErrTokenRevoked):
+			writeError(w, http.StatusUnauthorized, "token_revoked", "Refresh token has been revoked")
+		case errors.Is(err, ErrTokenNotFound):
+			writeError(w, http.StatusUnauthorized, "invalid_token", "Invalid refresh token")
+		default:
+			writeError(w, http.StatusInternalServerError, "internal", "Failed to revoke old token")
+		}
 		return
 	}
 

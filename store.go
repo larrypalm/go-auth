@@ -43,6 +43,13 @@ type TokenStore interface {
 	GetRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	RevokeAllRefreshTokens(ctx context.Context, userID uuid.UUID) error
+
+	// ConsumeRefreshToken revokes the token only if it is still active, checking and revoking
+	// in one atomic step, so two refreshes with the same token can't both succeed. It returns
+	// ErrTokenRevoked when no active token matched. In SQL that is
+	// UPDATE ... SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL
+	// and ErrTokenRevoked when it affects no rows.
+	ConsumeRefreshToken(ctx context.Context, tokenHash string) error
 }
 
 // ResetToken represents a stored password reset token.
