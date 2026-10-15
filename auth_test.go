@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // memoryUserStore is a fake in-memory UserStore for testing.
@@ -547,6 +548,74 @@ func TestLogin_NonexistentEmail(t *testing.T) {
 
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// recordPasswordChecks replaces a's password check with one that records each hash it compares against.
+func recordPasswordChecks(a *Auth) *[]string {
+	var hashes []string
+	a.checkPassword = func(password, hash string) error {
+		hashes = append(hashes, hash)
+		return CheckPassword(password, hash)
+	}
+	return &hashes
+}
+
+func login(a *Auth, email, password string) *httptest.ResponseRecorder {
+	body := `{"email":"` + email + `","password":"` + password + `"}`
+	req := httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+	return rec
+}
+
+func TestLogin_UnknownEmailChecksAPasswordLikeAWrongPassword(t *testing.T) {
+	a, _, _ := newTestAuth()
+	registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+	wrongPassword := login(a, "larry@example.com", "wrongpassword")
+
+	hashes := recordPasswordChecks(a)
+	unknownEmail := login(a, "nobody@example.com", "wrongpassword")
+
+	if len(*hashes) != 1 {
+		t.Errorf("expected 1 password check for an unknown email, got %d", len(*hashes))
+	}
+	if unknownEmail.Code != wrongPassword.Code || unknownEmail.Body.String() != wrongPassword.Body.String() {
+		t.Errorf("expected %d %s like a wrong password, got %d %s",
+			wrongPassword.Code, wrongPassword.Body.String(), unknownEmail.Code, unknownEmail.Body.String())
+	}
+}
+
+func TestLogin_UnknownEmailComparesAgainstAHashAtTheHashPasswordCost(t *testing.T) {
+	a, _, _ := newTestAuth()
+	hashes := recordPasswordChecks(a)
+
+	login(a, "nobody@example.com", "strongpassword123")
+
+	if len(*hashes) != 1 {
+		t.Fatalf("expected 1 password check, got %d", len(*hashes))
+	}
+	cost, err := bcrypt.Cost([]byte((*hashes)[0]))
+	if err != nil {
+		t.Fatalf("expected a bcrypt hash, got %q: %v", (*hashes)[0], err)
+	}
+	if cost != bcryptCost {
+		t.Errorf("expected cost %d like HashPassword, got %d", bcryptCost, cost)
+	}
+}
+
+// The first login with an unknown email must not also pay to build the dummy hash,
+// or its response time would show that the email is unknown.
+func TestNew_BuildsTheDummyHashBeforeTheFirstLogin(t *testing.T) {
+	a, _, _ := newTestAuth()
+
+	cost, err := bcrypt.Cost([]byte(a.dummyHash))
+	if err != nil {
+		t.Fatalf("expected New to build a bcrypt hash, got %q: %v", a.dummyHash, err)
+	}
+	if cost != bcryptCost {
+		t.Errorf("expected cost %d like HashPassword, got %d", bcryptCost, cost)
 	}
 }
 

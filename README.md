@@ -12,7 +12,7 @@ Mountable authentication handlers for Go APIs. JWT access tokens, bcrypt passwor
 - **Auth middleware** extracts and validates JWT from `Authorization: Bearer` header, or from the access cookie in cookie mode
 - **Cookie mode** keeps both tokens in httpOnly cookies for browser apps served from the same origin as the API
 - **Optional registration route**: set `DisableRegister` to leave `/auth/register` unmounted
-- Anti-enumeration: login returns the same error for wrong email and wrong password
+- Anti-enumeration: login returns the same error for an unknown email and a wrong password, and runs the same bcrypt comparison for both, so the response time doesn't tell them apart
 - No database dependency — you provide the storage via interfaces
 
 ## Install
