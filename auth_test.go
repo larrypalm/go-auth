@@ -781,6 +781,33 @@ func TestRefresh_SameTokenTwiceAtOnceGivesOneNewSession(t *testing.T) {
 	}
 }
 
+// goneTokenStore reports every consume as not found, as when the token was deleted
+// between the refresh's read and its revoke.
+type goneTokenStore struct {
+	*memoryTokenStore
+}
+
+func (s *goneTokenStore) ConsumeRefreshToken(ctx context.Context, tokenHash string) error {
+	return ErrTokenNotFound
+}
+
+func TestRefresh_TokenGoneBeforeConsumeIsInvalid(t *testing.T) {
+	a := New(Config{
+		UserStore:  &memoryUserStore{},
+		TokenStore: &goneTokenStore{memoryTokenStore: &memoryTokenStore{}},
+		JWTSecret:  "test-secret-key",
+		AccessTTL:  15 * time.Minute,
+		RefreshTTL: 30 * 24 * time.Hour,
+	})
+	regResp := registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+
+	rec := refresh(a, regResp.RefreshToken)
+
+	if rec.Code != http.StatusUnauthorized || errorCode(rec) != "invalid_token" {
+		t.Errorf("expected 401 invalid_token, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // --- Middleware tests ---
 
 // protectedHandler is a dummy handler that returns the user from context.
