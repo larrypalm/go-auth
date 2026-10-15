@@ -10,6 +10,7 @@ const bcryptCost = 12
 
 // dummyPasswordHash returns a hash made by HashPassword, so it always has the current cost.
 // Login compares against it when the email is unknown, which takes as long as a wrong password.
+// New calls it, so the process builds the hash once, before the first login.
 var dummyPasswordHash = sync.OnceValue(func() string {
 	hash, err := HashPassword("go-auth dummy password")
 	if err != nil {
