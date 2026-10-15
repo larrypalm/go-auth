@@ -91,7 +91,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuthResponse"
         "401":
-          description: Invalid, expired, or revoked refresh token
+          description: >
+            Invalid, expired, or revoked refresh token. Of two refreshes with the same
+            token at the same moment, one gets token_revoked.
           content:
             application/json:
               schema:

@@ -38,8 +38,21 @@ type TokenStore interface {
     SaveRefreshToken(ctx context.Context, token goauth.RefreshToken) error
     GetRefreshToken(ctx context.Context, tokenHash string) (goauth.RefreshToken, error)
     RevokeRefreshToken(ctx context.Context, tokenHash string) error
+    // Revokes the token only if it is still active, in one atomic step.
+    // Returns goauth.ErrTokenRevoked when no active token matched.
+    ConsumeRefreshToken(ctx context.Context, tokenHash string) error
 }
 ```
+
+`/auth/refresh` calls `ConsumeRefreshToken`, so of two refreshes with the same token at the same moment, only one gets a new token pair. The check and the revoke must happen in one step. A read followed by a write lets both requests through. In SQL:
+
+```sql
+UPDATE refresh_tokens SET revoked_at = now()
+WHERE token_hash = $1 AND revoked_at IS NULL;
+-- no rows affected: return goauth.ErrTokenRevoked
+```
+
+**Upgrading to v0.3.0.** `TokenStore` has the new method `ConsumeRefreshToken`, so a store written for v0.2.0 no longer compiles until it adds one. Logout still calls `RevokeRefreshToken`.
 
 Return `goauth.ErrEmailTaken`, `goauth.ErrUserNotFound`, or `goauth.ErrTokenNotFound` from your store implementations so go-auth can map them to the correct HTTP status codes.
 
