@@ -148,7 +148,8 @@ func (a *Auth) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Look up user by email
 	user, err := a.config.UserStore.GetUserByEmail(r.Context(), req.Email)
 	if err != nil {
-		// Same error for "not found" and "wrong password" to prevent email enumeration
+		// Same check and error for "not found" and "wrong password" to prevent email enumeration
+		_ = a.checkPassword(req.Password, "")
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "Invalid email or password")
 		return
 	}
