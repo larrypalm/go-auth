@@ -693,6 +693,80 @@ func TestRefresh_RevokedToken(t *testing.T) {
 	}
 }
 
+// raceTokenStore holds each GetRefreshToken result until two requests have read the token,
+// so both pass the revoked check before either one revokes it.
+type raceTokenStore struct {
+	*memoryTokenStore
+	mu    sync.Mutex
+	calls int
+	both  chan struct{}
+}
+
+func (s *raceTokenStore) GetRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error) {
+	token, err := s.memoryTokenStore.GetRefreshToken(ctx, tokenHash)
+
+	s.mu.Lock()
+	s.calls++
+	if s.calls == 2 {
+		close(s.both)
+	}
+	s.mu.Unlock()
+
+	select {
+	case <-s.both:
+	case <-time.After(5 * time.Second):
+	}
+	return token, err
+}
+
+func refresh(a *Auth, refreshToken string) *httptest.ResponseRecorder {
+	body := `{"refresh_token":"` + refreshToken + `"}`
+	req := httptest.NewRequest("POST", "/auth/refresh", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+	return rec
+}
+
+func errorCode(rec *httptest.ResponseRecorder) string {
+	var resp ErrorResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	return resp.Error.Code
+}
+
+func TestRefresh_SameTokenTwiceAtOnceGivesOneNewSession(t *testing.T) {
+	tokenStore := &raceTokenStore{memoryTokenStore: &memoryTokenStore{}, both: make(chan struct{})}
+	a := New(Config{
+		UserStore:  &memoryUserStore{},
+		TokenStore: tokenStore,
+		JWTSecret:  "test-secret-key",
+		AccessTTL:  15 * time.Minute,
+		RefreshTTL: 30 * 24 * time.Hour,
+	})
+	regResp := registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+
+	recs := make([]*httptest.ResponseRecorder, 2)
+	var wg sync.WaitGroup
+	for i := range recs {
+		wg.Go(func() { recs[i] = refresh(a, regResp.RefreshToken) })
+	}
+	wg.Wait()
+
+	var sessions, revoked int
+	for _, rec := range recs {
+		switch {
+		case rec.Code == http.StatusOK:
+			sessions++
+		case rec.Code == http.StatusUnauthorized && errorCode(rec) == "token_revoked":
+			revoked++
+		}
+	}
+	if sessions != 1 || revoked != 1 {
+		t.Errorf("expected one 200 and one 401 token_revoked, got %d %s and %d %s",
+			recs[0].Code, recs[0].Body.String(), recs[1].Code, recs[1].Body.String())
+	}
+}
+
 // --- Middleware tests ---
 
 // protectedHandler is a dummy handler that returns the user from context.
