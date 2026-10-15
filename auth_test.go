@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // memoryUserStore is a fake in-memory UserStore for testing.
@@ -583,6 +584,24 @@ func TestLogin_UnknownEmailChecksAPasswordLikeAWrongPassword(t *testing.T) {
 	if unknownEmail.Code != wrongPassword.Code || unknownEmail.Body.String() != wrongPassword.Body.String() {
 		t.Errorf("expected %d %s like a wrong password, got %d %s",
 			wrongPassword.Code, wrongPassword.Body.String(), unknownEmail.Code, unknownEmail.Body.String())
+	}
+}
+
+func TestLogin_UnknownEmailComparesAgainstAHashAtTheHashPasswordCost(t *testing.T) {
+	a, _, _ := newTestAuth()
+	hashes := recordPasswordChecks(a)
+
+	login(a, "nobody@example.com", "strongpassword123")
+
+	if len(*hashes) != 1 {
+		t.Fatalf("expected 1 password check, got %d", len(*hashes))
+	}
+	cost, err := bcrypt.Cost([]byte((*hashes)[0]))
+	if err != nil {
+		t.Fatalf("expected a bcrypt hash, got %q: %v", (*hashes)[0], err)
+	}
+	if cost != bcryptCost {
+		t.Errorf("expected cost %d like HashPassword, got %d", bcryptCost, cost)
 	}
 }
 
