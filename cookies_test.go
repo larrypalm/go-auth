@@ -265,6 +265,45 @@ func TestCookieMode_RefreshWithoutCookie(t *testing.T) {
 	}
 }
 
+// lostRaceTokenStore reports every consume as already revoked, as when another request
+// revoked the token between this request's read and its revoke.
+type lostRaceTokenStore struct {
+	*memoryTokenStore
+}
+
+func (s *lostRaceTokenStore) ConsumeRefreshToken(ctx context.Context, tokenHash string) error {
+	return ErrTokenRevoked
+}
+
+func TestCookieMode_RefreshThatLosesTheRaceSetsNoCookies(t *testing.T) {
+	tokenStore := &lostRaceTokenStore{memoryTokenStore: &memoryTokenStore{}}
+	a := New(Config{
+		UserStore:  &memoryUserStore{},
+		TokenStore: tokenStore,
+		JWTSecret:  "test-secret-key",
+		AccessTTL:  15 * time.Minute,
+		RefreshTTL: 30 * 24 * time.Hour,
+		CookieMode: true,
+	})
+	oldRefresh := findCookie(t, loginUser(t, a), "goauth_refresh")
+	saved := len(tokenStore.tokens)
+
+	req := httptest.NewRequest("POST", "/auth/refresh", nil)
+	req.AddCookie(oldRefresh)
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized || errorCode(rec) != "token_revoked" {
+		t.Errorf("expected 401 token_revoked, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if cookies := rec.Header().Values("Set-Cookie"); len(cookies) != 0 {
+		t.Errorf("expected no cookies, got %v", cookies)
+	}
+	if len(tokenStore.tokens) != saved {
+		t.Errorf("expected no new refresh token, got %d", len(tokenStore.tokens)-saved)
+	}
+}
+
 func TestCookieMode_MiddlewareReadsAccessCookie(t *testing.T) {
 	a, _, _ := newCookieAuth()
 	access := findCookie(t, loginUser(t, a), "goauth_access")
