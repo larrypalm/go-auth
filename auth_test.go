@@ -150,6 +150,20 @@ func (s *memoryTokenStore) RevokeRefreshToken(ctx context.Context, tokenHash str
 	return ErrTokenNotFound
 }
 
+func (s *memoryTokenStore) ConsumeRefreshToken(ctx context.Context, tokenHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i, t := range s.tokens {
+		if t.TokenHash == tokenHash && t.RevokedAt == nil {
+			now := time.Now()
+			s.tokens[i].RevokedAt = &now
+			return nil
+		}
+	}
+	return ErrTokenRevoked
+}
+
 func (s *memoryTokenStore) RevokeAllRefreshTokens(ctx context.Context, userID uuid.UUID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
