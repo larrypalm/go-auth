@@ -550,6 +550,42 @@ func TestLogin_NonexistentEmail(t *testing.T) {
 	}
 }
 
+// recordPasswordChecks replaces a's password check with one that records each hash it compares against.
+func recordPasswordChecks(a *Auth) *[]string {
+	var hashes []string
+	a.checkPassword = func(password, hash string) error {
+		hashes = append(hashes, hash)
+		return CheckPassword(password, hash)
+	}
+	return &hashes
+}
+
+func login(a *Auth, email, password string) *httptest.ResponseRecorder {
+	body := `{"email":"` + email + `","password":"` + password + `"}`
+	req := httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	a.Routes().ServeHTTP(rec, req)
+	return rec
+}
+
+func TestLogin_UnknownEmailChecksAPasswordLikeAWrongPassword(t *testing.T) {
+	a, _, _ := newTestAuth()
+	registerUser(t, a, "larry@example.com", "strongpassword123", "Larry")
+	wrongPassword := login(a, "larry@example.com", "wrongpassword")
+
+	hashes := recordPasswordChecks(a)
+	unknownEmail := login(a, "nobody@example.com", "wrongpassword")
+
+	if len(*hashes) != 1 {
+		t.Errorf("expected 1 password check for an unknown email, got %d", len(*hashes))
+	}
+	if unknownEmail.Code != wrongPassword.Code || unknownEmail.Body.String() != wrongPassword.Body.String() {
+		t.Errorf("expected %d %s like a wrong password, got %d %s",
+			wrongPassword.Code, wrongPassword.Body.String(), unknownEmail.Code, unknownEmail.Body.String())
+	}
+}
+
 // --- Refresh tests ---
 
 func TestRefresh_Success(t *testing.T) {
