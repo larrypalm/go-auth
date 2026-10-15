@@ -154,7 +154,7 @@ func (a *Auth) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify password
-	if err := CheckPassword(req.Password, user.PasswordHash); err != nil {
+	if err := a.checkPassword(req.Password, user.PasswordHash); err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "Invalid email or password")
 		return
 	}

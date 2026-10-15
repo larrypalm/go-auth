@@ -43,6 +43,9 @@ type Config struct {
 type Auth struct {
 	config Config
 	csrf   *http.CrossOriginProtection
+
+	// checkPassword is CheckPassword. Tests replace it to count the checks login runs.
+	checkPassword func(password, hash string) error
 }
 
 // New creates a new Auth instance with the given config.
@@ -65,7 +68,7 @@ func New(cfg Config) *Auth {
 	if cfg.RefreshCookiePath == "" {
 		cfg.RefreshCookiePath = "/auth"
 	}
-	return &Auth{config: cfg, csrf: http.NewCrossOriginProtection()}
+	return &Auth{config: cfg, csrf: http.NewCrossOriginProtection(), checkPassword: CheckPassword}
 }
 
 // Routes returns an http.Handler with all auth endpoints mounted.
