@@ -605,6 +605,20 @@ func TestLogin_UnknownEmailComparesAgainstAHashAtTheHashPasswordCost(t *testing.
 	}
 }
 
+// The first login with an unknown email must not also pay to build the dummy hash,
+// or its response time would show that the email is unknown.
+func TestNew_BuildsTheDummyHashBeforeTheFirstLogin(t *testing.T) {
+	a, _, _ := newTestAuth()
+
+	cost, err := bcrypt.Cost([]byte(a.dummyHash))
+	if err != nil {
+		t.Fatalf("expected New to build a bcrypt hash, got %q: %v", a.dummyHash, err)
+	}
+	if cost != bcryptCost {
+		t.Errorf("expected cost %d like HashPassword, got %d", bcryptCost, cost)
+	}
+}
+
 // --- Refresh tests ---
 
 func TestRefresh_Success(t *testing.T) {
