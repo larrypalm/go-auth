@@ -54,7 +54,7 @@ WHERE token_hash = $1 AND revoked_at IS NULL;
 
 **Upgrading to v0.3.0.** `TokenStore` has the new method `ConsumeRefreshToken`, so a store written for v0.2.0 no longer compiles until it adds one. Logout still calls `RevokeRefreshToken`.
 
-Return `goauth.ErrEmailTaken`, `goauth.ErrUserNotFound`, or `goauth.ErrTokenNotFound` from your store implementations so go-auth can map them to the correct HTTP status codes.
+Return `goauth.ErrEmailTaken`, `goauth.ErrUserNotFound`, `goauth.ErrTokenNotFound`, or `goauth.ErrTokenRevoked` from your store implementations so go-auth can map them to the correct HTTP status codes. `ConsumeRefreshToken` returns `goauth.ErrTokenRevoked` for a token that is already revoked, and refresh answers 401 `token_revoked`. Any error go-auth doesn't know becomes a 500.
 
 ### 2. Create and mount
 
