@@ -129,6 +129,19 @@ In cookie mode:
 | `RefreshCookiePath` | `/auth` | Change it if you mount the routes under a prefix, for example `/api/auth` with `http.StripPrefix` |
 | `InsecureCookies` | `false` | Leaves Secure off for local development over plain http. Safari rejects Secure cookies from `http://localhost`, while Chrome and Firefox accept them. Browsers also reject `__Host-` and `__Secure-` names without Secure. Never set it in production. |
 
+### 4. Faster tests
+
+go-auth hashes passwords with bcrypt cost 12. Every user a test registers and every login attempt pays for one full hash, which adds up, and more so under `go test -race`. Call `UseMinPasswordCostForTests` in your tests to switch to `bcrypt.MinCost`:
+
+```go
+func TestMain(m *testing.M) {
+    goauth.UseMinPasswordCostForTests()
+    os.Exit(m.Run())
+}
+```
+
+It changes `HashPassword` and the hash that login compares against for an unknown email, so an unknown email still takes as long as a wrong password. It's safe to call at any time, also after `New` and while other tests run. It can't be turned off. Hashes made at either cost still verify, because bcrypt reads the cost from the hash.
+
 ## Endpoints
 
 | Method | Path | Description |
