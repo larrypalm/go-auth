@@ -1,6 +1,7 @@
 package goauth
 
 import (
+	"sync"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
@@ -59,4 +60,21 @@ func TestUseMinPasswordCostForTests_BuildsTheDummyHashAtMinCost(t *testing.T) {
 	if cost != bcrypt.MinCost {
 		t.Errorf("expected cost %d, got %d", bcrypt.MinCost, cost)
 	}
+}
+
+// go test -race reports a data race here if the cost isn't safe to set while other goroutines read it.
+// The first call makes every hash in the test cheap. The second runs while the goroutines hash.
+func TestUseMinPasswordCostForTests_IsSafeWhileOtherGoroutinesHash(t *testing.T) {
+	useMinPasswordCost(t)
+
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			if _, err := HashPassword("strongpassword123"); err != nil {
+				t.Errorf("HashPassword: %v", err)
+			}
+		})
+	}
+	UseMinPasswordCostForTests()
+	wg.Wait()
 }
