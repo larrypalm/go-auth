@@ -45,3 +45,18 @@ func TestHashPassword_UsesMinCostAfterUseMinPasswordCostForTests(t *testing.T) {
 		t.Errorf("expected cost %d, got %d", bcrypt.MinCost, cost)
 	}
 }
+
+// The first login with an unknown email after the call must not also pay to build the low-cost dummy hash.
+func TestUseMinPasswordCostForTests_BuildsTheDummyHashAtMinCost(t *testing.T) {
+	built := recordDummyHashBuild(t)
+
+	useMinPasswordCost(t)
+
+	cost, err := bcrypt.Cost([]byte(*built))
+	if err != nil {
+		t.Fatalf("expected UseMinPasswordCostForTests to build a bcrypt hash, got %q: %v", *built, err)
+	}
+	if cost != bcrypt.MinCost {
+		t.Errorf("expected cost %d, got %d", bcrypt.MinCost, cost)
+	}
+}
