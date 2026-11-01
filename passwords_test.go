@@ -12,7 +12,7 @@ import (
 func useMinPasswordCost(t *testing.T) {
 	t.Helper()
 	UseMinPasswordCostForTests()
-	t.Cleanup(func() { minCostForTests = false })
+	t.Cleanup(func() { minCostForTests.Store(false) })
 }
 
 func TestHashPassword_UsesCost12ByDefault(t *testing.T) {
