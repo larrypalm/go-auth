@@ -633,6 +633,26 @@ func TestLogin_UnknownEmailComparesAgainstAHashAtTheHashPasswordCost(t *testing.
 	}
 }
 
+// The Auth is built before UseMinPasswordCostForTests, so New has already built the dummy hash at cost 12.
+func TestLogin_UnknownEmailComparesAgainstAHashAtMinCostAfterUseMinPasswordCostForTests(t *testing.T) {
+	a, _, _ := newTestAuth()
+	useMinPasswordCost(t)
+	hashes := recordPasswordChecks(a)
+
+	login(a, "nobody@example.com", "strongpassword123")
+
+	if len(*hashes) != 1 {
+		t.Fatalf("expected 1 password check, got %d", len(*hashes))
+	}
+	cost, err := bcrypt.Cost([]byte((*hashes)[0]))
+	if err != nil {
+		t.Fatalf("expected a bcrypt hash, got %q: %v", (*hashes)[0], err)
+	}
+	if cost != bcrypt.MinCost {
+		t.Errorf("expected cost %d like HashPassword, got %d", bcrypt.MinCost, cost)
+	}
+}
+
 // The first login with an unknown email must not also pay to build the dummy hash,
 // or its response time would show that the email is unknown.
 func TestNew_BuildsTheDummyHashBeforeTheFirstLogin(t *testing.T) {
