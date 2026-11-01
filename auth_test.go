@@ -575,6 +575,20 @@ func recordPasswordChecks(a *Auth) *[]string {
 	return &hashes
 }
 
+// recordDummyHashBuild wraps dummyPasswordHash until the test ends and records the hash it returns.
+// The hash stays empty if nothing asks for it.
+func recordDummyHashBuild(t *testing.T) *string {
+	t.Helper()
+	var built string
+	saved := dummyPasswordHash
+	dummyPasswordHash = func() string {
+		built = saved()
+		return built
+	}
+	t.Cleanup(func() { dummyPasswordHash = saved })
+	return &built
+}
+
 func login(a *Auth, email, password string) *httptest.ResponseRecorder {
 	body := `{"email":"` + email + `","password":"` + password + `"}`
 	req := httptest.NewRequest("POST", "/auth/login", bytes.NewBufferString(body))
@@ -622,11 +636,13 @@ func TestLogin_UnknownEmailComparesAgainstAHashAtTheHashPasswordCost(t *testing.
 // The first login with an unknown email must not also pay to build the dummy hash,
 // or its response time would show that the email is unknown.
 func TestNew_BuildsTheDummyHashBeforeTheFirstLogin(t *testing.T) {
-	a, _, _ := newTestAuth()
+	built := recordDummyHashBuild(t)
 
-	cost, err := bcrypt.Cost([]byte(a.dummyHash))
+	newTestAuth()
+
+	cost, err := bcrypt.Cost([]byte(*built))
 	if err != nil {
-		t.Fatalf("expected New to build a bcrypt hash, got %q: %v", a.dummyHash, err)
+		t.Fatalf("expected New to build a bcrypt hash, got %q: %v", *built, err)
 	}
 	if cost != bcryptCost {
 		t.Errorf("expected cost %d like HashPassword, got %d", bcryptCost, cost)
