@@ -44,6 +44,7 @@ var dummyHashes = map[int]func() string{
 // dummyPasswordHash returns a dummy hash at the cost HashPassword uses now.
 // Login compares against it when the email is unknown, which takes as long as a wrong password.
 // New calls it, so the process builds the hash once, before the first login.
+// Tests replace it to record the hash it returns.
 var dummyPasswordHash = func() string {
 	return dummyHashes[passwordCost()]()
 }
