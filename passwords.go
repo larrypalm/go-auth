@@ -11,12 +11,16 @@ const bcryptCost = 12
 // minCostForTests is set by UseMinPasswordCostForTests.
 var minCostForTests bool
 
-// UseMinPasswordCostForTests makes HashPassword use bcrypt.MinCost instead of cost 12,
+// UseMinPasswordCostForTests makes HashPassword, and the dummy hash login compares against
+// when the email is unknown, use bcrypt.MinCost instead of cost 12,
 // so tests that create users and log in run fast. Call it only from tests, for example in TestMain.
+// An Auth made by New before the call switches to the low-cost dummy hash too.
 // There is no way to turn it off. A hash made at either cost still verifies,
 // because bcrypt reads the cost from the hash.
 func UseMinPasswordCostForTests() {
 	minCostForTests = true
+	// Build the low-cost dummy hash now, so the next login with an unknown email doesn't also pay for it.
+	dummyPasswordHash()
 }
 
 // passwordCost is the bcrypt cost HashPassword uses.
