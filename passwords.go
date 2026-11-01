@@ -27,16 +27,27 @@ func passwordCost() int {
 	return bcryptCost
 }
 
-// dummyPasswordHash returns a hash made by HashPassword, so it always has the current cost.
+// dummyHashes holds one dummy hash for each cost HashPassword can use.
+// Each one is built the first time it's asked for.
+var dummyHashes = map[int]func() string{
+	bcryptCost:     sync.OnceValue(func() string { return hashDummyPassword(bcryptCost) }),
+	bcrypt.MinCost: sync.OnceValue(func() string { return hashDummyPassword(bcrypt.MinCost) }),
+}
+
+// dummyPasswordHash returns a dummy hash at the cost HashPassword uses now.
 // Login compares against it when the email is unknown, which takes as long as a wrong password.
 // New calls it, so the process builds the hash once, before the first login.
-var dummyPasswordHash = sync.OnceValue(func() string {
-	hash, err := HashPassword("go-auth dummy password")
+var dummyPasswordHash = func() string {
+	return dummyHashes[passwordCost()]()
+}
+
+func hashDummyPassword(cost int) string {
+	hash, err := bcrypt.GenerateFromPassword([]byte("go-auth dummy password"), cost)
 	if err != nil {
 		panic(err)
 	}
-	return hash
-})
+	return string(hash)
+}
 
 // HashPassword hashes a plaintext password using bcrypt.
 func HashPassword(password string) (string, error) {
