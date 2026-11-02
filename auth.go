@@ -46,8 +46,6 @@ type Auth struct {
 
 	// checkPassword is CheckPassword. Tests replace it to count the checks login runs.
 	checkPassword func(password, hash string) error
-	// dummyHash is what login compares the password against when the email is unknown.
-	dummyHash string
 }
 
 // New creates a new Auth instance with the given config.
@@ -70,11 +68,12 @@ func New(cfg Config) *Auth {
 	if cfg.RefreshCookiePath == "" {
 		cfg.RefreshCookiePath = "/auth"
 	}
+	// Build the dummy hash now, so the first login with an unknown email doesn't also pay for it.
+	dummyPasswordHash()
 	return &Auth{
 		config:        cfg,
 		csrf:          http.NewCrossOriginProtection(),
 		checkPassword: CheckPassword,
-		dummyHash:     dummyPasswordHash(),
 	}
 }
 
